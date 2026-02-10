@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -12,20 +14,40 @@ import (
 	"patpet-server/model"
 )
 
+func connectDB(dsn string) *gorm.DB {
+	for i := 0; i < 30; i++ {
+		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err == nil {
+			log.Println("✅ 数据库连接成功")
+			return db
+		}
+		log.Printf("⏳ 数据库连接失败，%d秒后重试... (%v)", 2, err)
+		time.Sleep(2 * time.Second)
+	}
+	log.Fatal("❌ 数据库连接失败，已达最大重试次数")
+	return nil
+}
+
 func main() {
 	cfg := LoadConfig()
 
-	// 先启动 HTTP 服务并监听端口，再连数据库（避免 DB 连不上时完全连不上服务）
 	r := gin.Default()
+
+	// 健康检查端点 —— 即使数据库还没连上也能响应，让平台知道进程已启动
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{})
-	if err != nil {
-		log.Fatal("数据库连接失败:", err)
-	}
-	log.Println("✅ 数据库连接成功")
+	// 先在后台启动 HTTP 监听，让平台端口检测通过
+	go func() {
+		log.Printf("🚀 服务启动在 :%s", cfg.Port)
+		if err := r.Run(":" + cfg.Port); err != nil {
+			log.Fatal("HTTP 服务启动失败:", err)
+		}
+	}()
+
+	// 然后连接数据库（带重试）
+	db := connectDB(cfg.DatabaseURL)
 
 	db.AutoMigrate(&model.User{})
 	log.Println("✅ 数据库表迁移完成")
@@ -42,6 +64,8 @@ func main() {
 		auth.GET("/profile", profileHandler.GetProfile)
 	}
 
-	log.Printf("🚀 服务启动在 :%s", cfg.Port)
-	r.Run(":" + cfg.Port)
+	log.Println("✅ 所有路由注册完成，服务就绪")
+
+	// 阻塞主 goroutine
+	select {}
 }
