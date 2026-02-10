@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -53,23 +52,20 @@ func main() {
 	db.AutoMigrate(&model.User{})
 	log.Println("✅ 数据库表迁移完成")
 
-	// 初始化 Cloudinary
-	var cld *cloudinary.Cloudinary
-	if cfg.CloudinaryURL != "" {
-		var err error
-		cld, err = cloudinary.NewFromURL(cfg.CloudinaryURL)
-		if err != nil {
-			log.Printf("⚠️ Cloudinary 初始化失败: %v（头像上传功能不可用）", err)
-		} else {
-			log.Println("✅ Cloudinary 初始化成功")
-		}
+	if cfg.SupabaseURL != "" && cfg.SupabaseKey != "" {
+		log.Println("✅ Supabase Storage 已配置")
 	} else {
-		log.Println("⚠️ 未配置 CLOUDINARY_URL，头像上传功能不可用")
+		log.Println("⚠️ 未配置 Supabase，头像上传功能不可用")
 	}
 
 	authHandler := &handler.AuthHandler{DB: db, JWTSecret: cfg.JWTSecret}
 	profileHandler := &handler.ProfileHandler{DB: db}
-	uploadHandler := &handler.UploadHandler{DB: db, Cloudinary: cld}
+	uploadHandler := &handler.UploadHandler{
+		DB:             db,
+		SupabaseURL:    cfg.SupabaseURL,
+		SupabaseKey:    cfg.SupabaseKey,
+		SupabaseBucket: cfg.SupabaseBucket,
+	}
 
 	r.POST("/api/v1/register", authHandler.Register)
 	r.POST("/api/v1/login", authHandler.Login)
