@@ -28,19 +28,19 @@ type RegisterRequest struct {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误: " + err.Error()})
 		return
 	}
 
 	var existing model.User
 	if err := h.DB.Where("email = ?", req.Email).First(&existing).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 1, "message": "email already registered"})
+		c.JSON(http.StatusConflict, gin.H{"code": 1, "message": "该邮箱已被注册"})
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 1, "message": "internal error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 1, "message": "服务器内部错误"})
 		return
 	}
 
@@ -51,7 +51,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	if err := h.DB.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 1, "message": "create user failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 1, "message": "创建用户失败"})
 		return
 	}
 
@@ -76,18 +76,18 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误: " + err.Error()})
 		return
 	}
 
 	var user model.User
 	if err := h.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 1, "message": "invalid email or password"})
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 1, "message": "邮箱或密码错误"})
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 1, "message": "invalid email or password"})
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 1, "message": "邮箱或密码错误"})
 		return
 	}
 

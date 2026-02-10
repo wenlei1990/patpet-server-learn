@@ -62,6 +62,8 @@ func main() {
 	auth.Use(middleware.JWTAuth(cfg.JWTSecret))
 	{
 		auth.GET("/profile", profileHandler.GetProfile)
+		auth.PUT("/profile", profileHandler.UpdateProfile)
+		auth.PUT("/password", profileHandler.ChangePassword)
 	}
 
 	log.Println("✅ 所有路由注册完成，服务就绪")
